@@ -1,3 +1,10 @@
 favicon_io/
 .DS_Store
+# macOS junk
+.DS_Store
+
+# Extension icons (if you don't want them in the repo)
+icon16.png
+icon48.png
+icon128.png
 
