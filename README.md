@@ -1,1 +1,0 @@
-# highlight-to-chatgpt
