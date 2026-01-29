@@ -1,4 +1,4 @@
-# Highlight → Ask ChatGPT
+# Highlight → Ask ChatGPT via Google Extension
 
 Highlight text on any webpage, right-click, and open a new ChatGPT tab with the selected text automatically inserted (ready to send).
 
