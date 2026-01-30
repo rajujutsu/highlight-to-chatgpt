@@ -1,79 +1,99 @@
-function findComposer() {
-  return (
-    document.querySelector("textarea") ||
-    document.querySelector('[role="textbox"][contenteditable="true"]') ||
-    document.querySelector('div[contenteditable="true"]')
-  );
-}
+// content.js
+(() => {
+  let btn = null;
+  let lastText = "";
 
-function setComposerText(el, text) {
-  el.focus();
-
-  if ("value" in el) {
-    el.value = text;
-  } else {
-    el.textContent = text;
+  function removeBtn() {
+    if (btn) btn.remove();
+    btn = null;
   }
 
-  el.dispatchEvent(new Event("input", { bubbles: true }));
-  el.dispatchEvent(new Event("change", { bubbles: true }));
-}
+  function createBtn(x, y) {
+    removeBtn();
 
-async function getFreshSelection() {
-  const { lastSelection, lastSelectionTs, lastSelectionNonce } =
-    await chrome.storage.local.get(["lastSelection", "lastSelectionTs", "lastSelectionNonce"]);
+    btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = "Ask";
 
-  if (!lastSelection) return null;
+    // Better styling
+    btn.style.position = "fixed";
+    btn.style.left = `${x}px`;
+    btn.style.top = `${y}px`;
+    btn.style.zIndex = "2147483647";
 
-  // Only insert if it's recent (5 minutes)
-  const age = Date.now() - (lastSelectionTs || 0);
-  if (age > 5 * 60 * 1000) return null;
+    btn.style.display = "inline-flex";
+    btn.style.alignItems = "center";
+    btn.style.justifyContent = "center";
+    btn.style.gap = "6px";
 
-  return { lastSelection, lastSelectionNonce };
-}
+    btn.style.height = "32px";
+    btn.style.minWidth = "56px";
+    btn.style.padding = "0 12px";
+    btn.style.borderRadius = "999px";
+    btn.style.opacity = "0";
+    btn.style.transition = "opacity 120ms ease, transform 120ms ease";
 
-async function insertLatest() {
-  const payload = await getFreshSelection();
-  if (!payload) return;
+    requestAnimationFrame(() => {
+      btn.style.opacity = "1";
+    });
 
-  const { lastSelection } = payload;
+    // Always readable on dark/black screens
+    btn.style.background = "rgba(0,0,0,0.9)";
+    btn.style.color = "#fff";
+    btn.style.border = "1px solid rgba(255,255,255,0.25)";
 
-  let tries = 0;
-  const maxTries = 80;
+    btn.style.cursor = "pointer";
+    btn.style.userSelect = "none";
+    btn.style.fontSize = "12px";
+    btn.style.fontWeight = "600";
+    btn.style.lineHeight = "1";
+    btn.style.letterSpacing = "0.2px";
+    btn.style.boxShadow = "0 6px 20px rgba(0,0,0,0.25)";
 
-  const timer = setInterval(async () => {
-    tries++;
+    btn.addEventListener("mouseenter", () => {
+      btn.style.transform = "translateY(-1px)";
+    });
+    btn.addEventListener("mouseleave", () => {
+      btn.style.transform = "translateY(0)";
+    });
 
-    const composer = findComposer();
-    if (composer) {
-      setComposerText(composer, lastSelection);
+    btn.addEventListener("click", () => {
+      if (!lastText) return;
+      chrome.runtime.sendMessage({ type: "H2C_ASK", text: lastText });
+      removeBtn();
+    });
 
-      // Do NOT remove storage here — removing is what makes “only once” bugs common.
-      // Leaving it lets you re-trigger insertion if needed.
-      clearInterval(timer);
+    document.documentElement.appendChild(btn);
+  }
+
+  function onSelectionChange() {
+    const text = (window.getSelection?.().toString?.() || "").trim();
+
+    if (!text) {
+      lastText = "";
+      removeBtn();
+      return;
     }
 
-    if (tries >= maxTries) clearInterval(timer);
-  }, 200);
-}
+    if (text === lastText) return;
+    lastText = text;
 
-// Insert on initial load
-insertLatest();
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
 
-// Also respond to background “poke”
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg?.type === "PULL_AND_INSERT") insertLatest();
-});
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    const x = Math.min(window.innerWidth - 60, rect.right + 8);
+    const y = Math.max(8, rect.top - 36);
 
-// ChatGPT is a SPA; URL changes without reload
-let lastHref = location.href;
-new MutationObserver(() => {
-  if (location.href !== lastHref) {
-    lastHref = location.href;
-    insertLatest();
+    createBtn(x, y);
   }
-}).observe(document, { childList: true, subtree: true });
 
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg?.type === "PING") return; // just proves we're injected
-});
+  document.addEventListener("mouseup", () => setTimeout(onSelectionChange, 0));
+  document.addEventListener("keyup", () => setTimeout(onSelectionChange, 0));
+  document.addEventListener("scroll", () => removeBtn(), true);
+
+  document.addEventListener("mousedown", (e) => {
+    if (btn && e.target === btn) return;
+    removeBtn();
+  });
+})();
