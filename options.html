@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Highlight → Ask ChatGPT Options</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        margin: 24px;
+        max-width: 900px;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 16px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin: 10px 0;
+      }
+      input,
+      textarea,
+      select,
+      button {
+        font: inherit;
+      }
+      input,
+      textarea,
+      select {
+        width: 100%;
+        padding: 8px;
+      }
+      textarea {
+        min-height: 110px;
+      }
+      .card {
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 14px;
+        margin-top: 14px;
+      }
+      .muted {
+        color: #6b7280;
+        font-size: 12px;
+      }
+      .btn {
+        padding: 8px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 10px;
+        background: #fff;
+        cursor: pointer;
+      }
+      .btn.primary {
+        border-color: #111827;
+      }
+      .list {
+        margin-top: 10px;
+      }
+      .item {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px;
+        border-top: 1px solid #f3f4f6;
+      }
+      code {
+        background: #f3f4f6;
+        padding: 2px 6px;
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Options</h1>
+
+    <div class="card">
+      <div class="row">
+        <div style="min-width: 220px">Floating button action</div>
+        <select id="floatingAction"></select>
+        <button class="btn primary" id="saveFloating">Save</button>
+      </div>
+      <div class="muted">
+        Default is <code>Ask</code>. Templates use <code>{{text}}</code> as the
+        highlighted content.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size: 16px; margin: 0 0 6px">Keyboard shortcut</h2>
+      <div class="muted">
+        Default shortcut is <strong>Ctrl / Cmd + Shift + Y</strong>. To change
+        it, open Chrome’s shortcut settings:
+      </div>
+
+      <div class="row" style="margin-top: 10px">
+        <input
+          id="shortcutsUrl"
+          value="chrome://extensions/shortcuts"
+          readonly
+        />
+        <button class="btn" id="copyShortcutsUrl">Copy</button>
+
+        <div class="muted">Paste that into your address bar.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <button class="btn primary" id="openHistory">Open History</button>
+      </div>
+      <div class="muted">
+        View and search what you’ve sent to ChatGPT (stored locally).
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size: 16px; margin: 0 0 10px">Custom templates</h2>
+
+      <div class="row">
+        <input id="tplName" placeholder="Template name (ex: CEO summary)" />
+      </div>
+      <div class="row">
+        <textarea
+          id="tplPrompt"
+          placeholder="Prompt (use {{text}} where the highlight should go)"
+        ></textarea>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="addTemplate">Add template</button>
+      </div>
+
+      <div class="muted">
+        Example: <code>Summarize for a CEO in 5 bullets. Text: {{text}}</code>
+      </div>
+
+      <div class="list" id="templateList"></div>
+    </div>
+
+    <script src="options.js"></script>
+  </body>
+</html>

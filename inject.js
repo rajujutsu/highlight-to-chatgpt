@@ -13,7 +13,9 @@
   if (nonce) window.__H2C_LAST_NONCE__ = nonce;
 
   // Clear payload so re-runs don't reuse stale text
-  try { delete window.__H2C_PAYLOAD__; } catch {}
+  try {
+    delete window.__H2C_PAYLOAD__;
+  } catch {}
 
   const isVisible = (el) => {
     const r = el.getBoundingClientRect();
@@ -24,7 +26,7 @@
     const candidates = [
       document.querySelector("textarea"),
       document.querySelector('[role="textbox"][contenteditable="true"]'),
-      document.querySelector('div[contenteditable="true"]')
+      document.querySelector('div[contenteditable="true"]'),
     ].filter(Boolean);
 
     return candidates.find(isVisible) || candidates[0] || null;
@@ -45,19 +47,66 @@
   const setContentEditable = (el, value) => {
     el.focus();
 
-    const ok = document.execCommand && document.execCommand("insertText", false, value);
+    const ok =
+      document.execCommand && document.execCommand("insertText", false, value);
     if (!ok) el.textContent = value;
 
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
   };
 
+  function showToast(message) {
+    try {
+      const el = document.createElement("div");
+      el.textContent = message;
+
+      el.style.position = "fixed";
+      el.style.left = "50%";
+      el.style.bottom = "18px";
+      el.style.transform = "translateX(-50%)";
+      el.style.zIndex = "2147483647";
+
+      el.style.padding = "10px 12px";
+      el.style.borderRadius = "999px";
+      el.style.background = "rgba(17, 24, 39, 0.92)";
+      el.style.color = "#F9FAFB";
+      el.style.border = "1px solid rgba(255,255,255,0.18)";
+      el.style.boxShadow = "0 10px 30px rgba(0,0,0,0.28)";
+      el.style.backdropFilter = "blur(6px)";
+      el.style.webkitBackdropFilter = "blur(6px)";
+
+      el.style.fontSize = "12px";
+      el.style.fontWeight = "600";
+      el.style.opacity = "0";
+      el.style.transition = "opacity 140ms ease";
+
+      document.documentElement.appendChild(el);
+      requestAnimationFrame(() => (el.style.opacity = "1"));
+
+      setTimeout(() => {
+        el.style.opacity = "0";
+        setTimeout(() => el.remove(), 200);
+      }, 1200);
+    } catch {}
+  }
+
   const tryInsertOnce = () => {
     const composer = findComposer();
+    // Guard: don't overwrite if user already has text in the composer
+    const existing = (
+      "value" in composer ? composer.value : composer.textContent || ""
+    ).trim();
+    if (existing) {
+      showToast("ChatGPT composer already has text");
+      return true;
+    }
+
     if (!composer) return false;
 
     if ("value" in composer) setTextareaReactSafe(composer, text);
     else setContentEditable(composer, text);
+
+    showToast("Inserted into ChatGPT");
 
     return true;
   };
@@ -85,5 +134,8 @@
     }
   });
 
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
 })();

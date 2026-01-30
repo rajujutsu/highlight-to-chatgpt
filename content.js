@@ -57,9 +57,21 @@
       btn.style.transform = "translateY(0)";
     });
 
-    btn.addEventListener("click", () => {
-      if (!lastText) return;
-      chrome.runtime.sendMessage({ type: "H2C_ASK", text: lastText });
+    btn.addEventListener("click", async () => {
+      const t = (lastText || "").trim();
+      if (!t) return;
+
+      let action = { type: "ask" };
+
+      try {
+        const data = await chrome.storage.sync.get(["h2c_floating_action"]);
+        action = data.h2c_floating_action || { type: "ask" };
+      } catch (e) {
+        // If storage isn't available for any reason, still do the default Ask
+        action = { type: "ask" };
+      }
+
+      chrome.runtime.sendMessage({ type: "H2C_RUN", action, text: t });
       removeBtn();
     });
 
@@ -70,6 +82,13 @@
     const text = (window.getSelection?.().toString?.() || "").trim();
 
     if (!text) {
+      lastText = "";
+      removeBtn();
+      return;
+    }
+
+    // Guard: ignore tiny selections
+    if (text.length < 10) {
       lastText = "";
       removeBtn();
       return;
@@ -88,6 +107,14 @@
     createBtn(x, y);
   }
 
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg?.type === "H2C_GET_SELECTION") {
+      const text = (window.getSelection?.().toString?.() || "").trim();
+      sendResponse({ text });
+      return true;
+    }
+  });
+  
   document.addEventListener("mouseup", () => setTimeout(onSelectionChange, 0));
   document.addEventListener("keyup", () => setTimeout(onSelectionChange, 0));
   document.addEventListener("scroll", () => removeBtn(), true);
