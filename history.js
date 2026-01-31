@@ -1,5 +1,5 @@
 const KEY = "h2c_history";
-const PRO_PRICE = "$4.99";
+const PRO_PRICE = "$2.99";
 
 async function isPro() {
   const data = await chrome.storage.local.get(["h2c_is_pro"]);

@@ -117,6 +117,24 @@
         background: #ecfdf5;
         border-color: #86efac;
       }
+
+      .badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        border: 1px solid #d1d5db;
+      }
+      .badge.pro {
+        background: #16a34a;
+        color: white;
+        border-color: #15803d;
+      }
+      .badge.free {
+        background: #f3f4f6;
+        color: #111827;
+      }
     </style>
   </head>
   <body>
@@ -124,18 +142,56 @@
       <h2 style="font-size: 16px; margin: 0 0 6px">Unlock Pro</h2>
       <div class="muted">
         Templates are a Pro feature. Unlock Pro for
-        <strong>$4.99 one-time</strong>.
+        <strong>$2.99 one-time</strong>.
       </div>
       <div style="margin-top: 10px">
-        <button class="btn primary" id="unlockPro">Unlock Pro — $4.99</button>
+        <button class="btn primary" id="unlockPro">Unlock Pro — $2.99</button>
       </div>
     </div>
 
     <h1>Options</h1>
+    <div class="card" id="proCard">
+      <h2 style="margin: 0 0 6px">Unlock Pro</h2>
+      <div class="muted" id="proStatusText">Checking…</div>
+
+      <div style="margin-top: 10px" class="muted">
+        One-time unlock: <strong>$2.99</strong>. No subscriptions.
+      </div>
+
+      <div class="row" style="margin-top: 12px">
+        <button class="btn primary" id="unlockProBtn">
+          Purchase Pro on Gumroad
+        </button>
+      </div>
+
+      <div class="row" style="margin-top: 12px">
+        <input id="licenseKey" placeholder="Paste your Gumroad license key" />
+        <button class="btn primary" id="activateBtn">Activate</button>
+        <button class="btn" id="restoreBtn">Restore</button>
+      </div>
+
+      <div class="muted" id="proMsg" style="margin-top: 10px"></div>
+
+      <hr style="margin: 14px 0; border: none; border-top: 1px solid #eee" />
+
+      <div class="muted">
+        Pro unlocks: Custom templates, History search, Export (JSON/CSV/MD),
+        bigger history cap.
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <h2 style="margin:0 0 8px;">Help</h2>
+      <div class="muted">
+        <div><strong>Where is my license key?</strong> It’s in your Gumroad receipt email.</div>
+        <div style="margin-top:6px;"><strong>What is Restore?</strong> Use it after reinstalling Chrome, switching computers, or clearing browser data.</div>
+        <div style="margin-top:6px;"><strong>Templates not showing?</strong> Close the right-click menu and right-click again. (Chrome menus don’t update mid-open.)</div>
+      </div>
+    </div>    
 
     <div class="card">
       <div class="row">
-        <div style="min-width: 220px">Floating button action</div>
+        <div style="min-width: 220px">Customize the call to action button.</div>
         <select id="floatingAction"></select>
         <button class="btn primary" id="saveFloating">Save</button>
       </div>
@@ -195,9 +251,22 @@
 
       <div class="list" id="templateList"></div>
     </div>
-    <div class="pro-toggle">
+
+    <!-- Dev tools (hidden) -->
+    <div id="devGate" style="display: none; margin-top: 14px">
+      <div class="muted" style="margin-bottom: 6px">Dev unlock</div>
+      <div class="row">
+        <input
+          id="devPass"
+          type="password"
+          placeholder="Enter dev passphrase"
+        />
+        <button class="btn" id="devUnlockBtn">Unlock</button>
+      </div>
+      <div class="muted" id="devGateMsg" style="margin-top: 6px"></div>
+    </div>
+    <div id="devTools" style="display: none; margin-top: 12px">
       <button id="togglePro" class="btn pro-off">Dev: Toggle Pro</button>
-      <div id="proStatus" class="muted"></div>
     </div>
 
     <script src="options.js"></script>

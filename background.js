@@ -22,6 +22,8 @@ const TO_CODE_COMMENTS_ID = "to_code_comments";
 
 const PRO_KEY = "h2c_is_pro";
 
+const UNLOCK_PRO_ID = "unlock-pro";
+
 let refreshTimer = null;
 let menuBuildInProgress = false;
 let menuBuildPending = false;
@@ -32,27 +34,6 @@ function scheduleRefreshMenus() {
     refreshTimer = null;
     refreshMenus();
   }, 150);
-}
-
-function refreshMenus() {
-  if (menuBuildInProgress) {
-    menuBuildPending = true;
-    return;
-  }
-
-  menuBuildInProgress = true;
-
-  chrome.contextMenus.removeAll(() => {
-    setupContextMenuBase(); // always rebuild the base menus
-    addTemplateMenuItems(); // adds template items only if Pro
-
-    menuBuildInProgress = false;
-
-    if (menuBuildPending) {
-      menuBuildPending = false;
-      refreshMenus();
-    }
-  });
 }
 
 async function isProUser() {
@@ -108,6 +89,7 @@ function labelForBuiltIn(id) {
 }
 
 function setupContextMenuBase() {
+  
   chrome.contextMenus.create({
     id: MENU_ID,
     title: 'Ask ChatGPT about: "%s"',
@@ -212,6 +194,47 @@ function setupContextMenuBase() {
   });
 }
 
+function refreshMenus() {
+  if (menuBuildInProgress) {
+    menuBuildPending = true;
+    return;
+  }
+
+  menuBuildInProgress = true;
+
+  chrome.contextMenus.removeAll(() => {
+    setupContextMenuBase();   // Ask + Tools + built-ins (+ Templates parent)
+    addTemplateMenuItems();   // templates only if Pro
+
+    chrome.storage.local.get([PRO_KEY], (proData) => {
+      const pro = proData[PRO_KEY] === true;
+
+      // Free-only: Unlock Pro menu item
+      if (!pro) {
+        chrome.contextMenus.create(
+          {
+            id: UNLOCK_PRO_ID,
+            parentId: TOOLS_PARENT,
+            title: "Unlock Pro ($4.99 one-time)",
+            contexts: ["selection"],
+          },
+          () => {
+            const err = chrome.runtime.lastError;
+            if (err) console.log("unlock menu create error:", err.message);
+          }
+        );
+      }
+
+      menuBuildInProgress = false;
+
+      if (menuBuildPending) {
+        menuBuildPending = false;
+        refreshMenus();
+      }
+    });
+  });
+}
+
 function addTemplateMenuItems() {
   // Only show template items if Pro
   chrome.storage.local.get(["h2c_is_pro"], (proData) => {
@@ -240,54 +263,6 @@ function addTemplateMenuItems() {
           },
           () => void chrome.runtime.lastError
         );
-      }
-    });
-  });
-}
-
-function refreshMenus() {
-  if (menuBuildInProgress) {
-    menuBuildPending = true;
-    return;
-  }
-
-  menuBuildInProgress = true;
-
-  chrome.contextMenus.removeAll(() => {
-    setupContextMenuBase();
-
-    chrome.storage.sync.get(["h2c_templates"], (data) => {
-      const templates = Array.isArray(data.h2c_templates)
-        ? data.h2c_templates
-        : [];
-      const seen = new Set();
-
-      for (const tpl of templates) {
-        if (!tpl?.id) continue;
-
-        const id = TEMPLATE_ITEM_PREFIX + tpl.id;
-        if (seen.has(id)) continue;
-        seen.add(id);
-
-        chrome.contextMenus.create(
-          {
-            id,
-            parentId: TEMPLATES_PARENT,
-            title: tpl.name || "Untitled template",
-            contexts: ["selection"],
-          },
-          () => {
-            // swallow runtime.lastError to avoid noisy logs
-            void chrome.runtime.lastError;
-          }
-        );
-      }
-
-      menuBuildInProgress = false;
-
-      if (menuBuildPending) {
-        menuBuildPending = false;
-        refreshMenus();
       }
     });
   });
@@ -425,6 +400,11 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
     }
   } catch {}
 
+  if (info.menuItemId === UNLOCK_PRO_ID) {
+    chrome.tabs.create({ url: chrome.runtime.getURL("options.html#upgrade") });
+    return;
+  }
+
   if (
     typeof info.menuItemId === "string" &&
     info.menuItemId.startsWith(TEMPLATE_ITEM_PREFIX)
@@ -520,6 +500,11 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
 chrome.runtime.onMessage.addListener((msg) => {
   if (!msg) return;
 
+  if (msg?.type === "H2C_PRO_CHANGED") {
+    scheduleRefreshMenus();
+    return;
+  }
+
   if (msg.type === "H2C_TEMPLATES_UPDATED") {
     scheduleRefreshMenus();
     return;
@@ -551,6 +536,13 @@ chrome.runtime.onMessage.addListener((msg) => {
 
       if (prompt) await openChatGPTAndInject(prompt);
     })().catch(console.error);
+  }
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.h2c_is_pro) {
+    // Pro turned ON/OFF -> rebuild menus immediately
+    scheduleRefreshMenus();
   }
 });
 
