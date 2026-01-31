@@ -69,9 +69,68 @@
         padding: 2px 6px;
         border-radius: 6px;
       }
+      .btn {
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid #d1d5db;
+        background: #fff;
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      .btn.pro-off {
+        background: #f3f4f6;
+        color: #111827;
+        border-color: #d1d5db;
+      }
+
+      .btn.pro-on {
+        background: #16a34a;
+        color: #ffffff;
+        border-color: #15803d;
+        box-shadow: 0 10px 28px rgba(22, 163, 74, 0.35);
+      }
+
+      .btn.pro-on:hover {
+        filter: brightness(1.05);
+      }
+
+      .btn.pro-off:hover {
+        filter: brightness(0.98);
+      }
+      .pro-toggle {
+        margin: 20px 0;
+        padding: 16px;
+        border-radius: 14px;
+        background: #f9fafb;
+        border: 1px dashed #e5e7eb;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .pro-toggle .muted {
+        font-size: 13px;
+        color: #6b7280;
+      }
+      .pro-toggle:has(.pro-on) {
+        background: #ecfdf5;
+        border-color: #86efac;
+      }
     </style>
   </head>
   <body>
+    <div id="upgradeBanner" class="card" style="display: none">
+      <h2 style="font-size: 16px; margin: 0 0 6px">Unlock Pro</h2>
+      <div class="muted">
+        Templates are a Pro feature. Unlock Pro for
+        <strong>$4.99 one-time</strong>.
+      </div>
+      <div style="margin-top: 10px">
+        <button class="btn primary" id="unlockPro">Unlock Pro — $4.99</button>
+      </div>
+    </div>
+
     <h1>Options</h1>
 
     <div class="card">
@@ -135,6 +194,10 @@
       </div>
 
       <div class="list" id="templateList"></div>
+    </div>
+    <div class="pro-toggle">
+      <button id="togglePro" class="btn pro-off">Dev: Toggle Pro</button>
+      <div id="proStatus" class="muted"></div>
     </div>
 
     <script src="options.js"></script>

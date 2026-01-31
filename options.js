@@ -1,14 +1,38 @@
 const STORAGE_KEYS = {
   templates: "h2c_templates",
-  floatingAction: "h2c_floating_action" // { type: "ask" } OR { type: "template", id: "..." }
+  floatingAction: "h2c_floating_action", // { type: "ask" } OR { type: "template", id: "..." }
 };
 
 function uid() {
-  return (globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random());
+  return (
+    globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random()
+  );
+}
+
+async function ensureFloatingActionAllowed() {
+  const pro = await isPro();
+
+  if (!pro) {
+    const data = await chrome.storage.sync.get(["h2c_floating_action"]);
+    const action = data.h2c_floating_action;
+
+    // If it was set to a template, reset to Ask
+    if (action?.type === "template") {
+      await chrome.storage.sync.set({ h2c_floating_action: { type: "ask" } });
+    }
+  }
+}
+
+async function isPro() {
+  const data = await chrome.storage.local.get(["h2c_is_pro"]);
+  return data.h2c_is_pro === true;
 }
 
 async function loadState() {
-  const data = await chrome.storage.sync.get([STORAGE_KEYS.templates, STORAGE_KEYS.floatingAction]);
+  const data = await chrome.storage.sync.get([
+    STORAGE_KEYS.templates,
+    STORAGE_KEYS.floatingAction,
+  ]);
   const templates = data[STORAGE_KEYS.templates] || [];
   const floatingAction = data[STORAGE_KEYS.floatingAction] || { type: "ask" };
   return { templates, floatingAction };
@@ -22,9 +46,14 @@ async function saveFloatingAction(action) {
   await chrome.storage.sync.set({ [STORAGE_KEYS.floatingAction]: action });
 }
 
-function renderTemplates(templates) {
+function renderTemplates(templates, pro) {
   const list = document.getElementById("templateList");
   list.innerHTML = "";
+
+  if (!pro) {
+    list.innerHTML = `<div class="muted">Templates are a Pro feature. Unlock Pro for $4.99 (one-time).</div>`;
+    return;
+  }
 
   if (!templates.length) {
     list.innerHTML = `<div class="muted" style="padding:10px 0;">No templates yet.</div>`;
@@ -37,7 +66,9 @@ function renderTemplates(templates) {
     row.innerHTML = `
       <div>
         <div><strong>${tpl.name}</strong></div>
-        <div class="muted">${tpl.prompt.replace(/</g, "&lt;").slice(0, 160)}${tpl.prompt.length > 160 ? "…" : ""}</div>
+        <div class="muted">${tpl.prompt.replace(/</g, "&lt;").slice(0, 160)}${
+      tpl.prompt.length > 160 ? "…" : ""
+    }</div>
       </div>
       <div>
         <button class="btn" data-del="${tpl.id}">Delete</button>
@@ -57,7 +88,19 @@ function renderTemplates(templates) {
   });
 }
 
-function renderFloatingDropdown(templates, floatingAction) {
+function maybeShowUpgradeBanner() {
+  const banner = document.getElementById("upgradeBanner");
+  if (!banner) return;
+  if (location.hash === "#upgrade") banner.style.display = "block";
+}
+
+maybeShowUpgradeBanner();
+
+document.getElementById("unlockPro")?.addEventListener("click", () => {
+  alert("Payment flow next. For now, use Dev Toggle Pro to test.");
+});
+
+function renderFloatingDropdown(templates, floatingAction, pro) {
   const select = document.getElementById("floatingAction");
   select.innerHTML = "";
 
@@ -66,7 +109,7 @@ function renderFloatingDropdown(templates, floatingAction) {
   optAsk.textContent = "Ask (default)";
   select.appendChild(optAsk);
 
-  if (templates.length) {
+  if (pro && templates.length) {
     const divider = document.createElement("option");
     divider.disabled = true;
     divider.textContent = "──────────";
@@ -80,7 +123,7 @@ function renderFloatingDropdown(templates, floatingAction) {
     }
   }
 
-  if (floatingAction.type === "template") {
+  if (pro && floatingAction.type === "template") {
     select.value = `template:${floatingAction.id}`;
   } else {
     select.value = "ask";
@@ -88,13 +131,56 @@ function renderFloatingDropdown(templates, floatingAction) {
 }
 
 async function refreshUI() {
+  await ensureFloatingActionAllowed();
   const { templates, floatingAction } = await loadState();
-  renderTemplates(templates);
-  renderFloatingDropdown(templates, floatingAction);
+  const pro = await isPro();
+
+  renderTemplates(templates, pro);
+  renderFloatingDropdown(templates, floatingAction, pro);
+
+  const btn = document.getElementById("addTemplate");
+  if (btn) {
+    btn.disabled = !pro;
+    btn.style.opacity = pro ? "1" : "0.5";
+    btn.style.cursor = pro ? "pointer" : "not-allowed";
+  }
 }
 
-document.getElementById("copyShortcutsUrl")?.addEventListener("click", async () => {
-    const val = document.getElementById("shortcutsUrl")?.value || "chrome://extensions/shortcuts";
+async function updateProStatus() {
+  const data = await chrome.storage.local.get(["h2c_is_pro"]);
+  const isPro = data.h2c_is_pro === true;
+
+  const statusEl = document.getElementById("proStatus");
+  if (statusEl) statusEl.textContent = isPro ? "Pro: ON" : "Pro: OFF";
+
+  const btn = document.getElementById("togglePro");
+  if (btn) {
+    btn.classList.toggle("pro-on", isPro);
+    btn.classList.toggle("pro-off", !isPro);
+    btn.textContent = isPro
+      ? "Dev: Pro ON (click to turn off)"
+      : "Dev: Pro OFF (click to turn on)";
+  }
+}
+
+document.getElementById("togglePro")?.addEventListener("click", async () => {
+  const data = await chrome.storage.local.get(["h2c_is_pro"]);
+  const next = !(data.h2c_is_pro === true);
+  await chrome.storage.local.set({ h2c_is_pro: next });
+  await updateProStatus();
+  await refreshUI();
+  await ensureFloatingActionAllowed();
+  await refreshUI();
+});
+
+updateProStatus().catch(console.error);
+
+document
+  .getElementById("copyShortcutsUrl")
+  ?.addEventListener("click", async () => {
+    const val =
+      document.getElementById("shortcutsUrl")?.value ||
+      "chrome://extensions/shortcuts";
     try {
       await navigator.clipboard.writeText(val);
     } catch {
@@ -106,18 +192,22 @@ document.getElementById("copyShortcutsUrl")?.addEventListener("click", async () 
       }
     }
   });
-  
+
 document.getElementById("addTemplate").addEventListener("click", async () => {
+  const pro = await isPro();
+  if (!pro) {
+    alert("Templates are a Pro feature. Unlock Pro for $4.99 (one-time).");
+    return;
+  }
+
   const name = document.getElementById("tplName").value.trim();
   const prompt = document.getElementById("tplPrompt").value.trim();
-
   if (!name || !prompt) return;
 
   const { templates } = await loadState();
   templates.push({ id: uid(), name, prompt });
 
   await saveTemplates(templates);
-
   chrome.runtime.sendMessage({ type: "H2C_TEMPLATES_UPDATED" });
 
   document.getElementById("tplName").value = "";
@@ -140,7 +230,14 @@ document.getElementById("saveFloating").addEventListener("click", async () => {
 });
 
 document.getElementById("openHistory")?.addEventListener("click", () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL("history.html") });
-  });
-  
+  chrome.tabs.create({ url: chrome.runtime.getURL("history.html") });
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === "local" && changes.h2c_is_pro) {
+    refreshUI().catch(console.error);
+    updateProStatus().catch(console.error);
+  }
+});
+
 refreshUI().catch(console.error);

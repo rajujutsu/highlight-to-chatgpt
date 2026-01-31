@@ -20,6 +20,8 @@ const TO_TWEET_ID = "to_tweet";
 const TO_NOTES_ID = "to_notes";
 const TO_CODE_COMMENTS_ID = "to_code_comments";
 
+const PRO_KEY = "h2c_is_pro";
+
 let refreshTimer = null;
 let menuBuildInProgress = false;
 let menuBuildPending = false;
@@ -32,16 +34,49 @@ function scheduleRefreshMenus() {
   }, 150);
 }
 
+function refreshMenus() {
+  if (menuBuildInProgress) {
+    menuBuildPending = true;
+    return;
+  }
+
+  menuBuildInProgress = true;
+
+  chrome.contextMenus.removeAll(() => {
+    setupContextMenuBase(); // always rebuild the base menus
+    addTemplateMenuItems(); // adds template items only if Pro
+
+    menuBuildInProgress = false;
+
+    if (menuBuildPending) {
+      menuBuildPending = false;
+      refreshMenus();
+    }
+  });
+}
+
+async function isProUser() {
+  const data = await chrome.storage.local.get([PRO_KEY]);
+  return data[PRO_KEY] === true;
+}
+
+async function setProUser(value) {
+  await chrome.storage.local.set({ [PRO_KEY]: !!value });
+}
+
 // History
 const HISTORY_KEY = "h2c_history";
-const HISTORY_MAX = 200;
+const HISTORY_MAX_FREE = 200;
+const HISTORY_MAX_PRO = 1000;
 
 async function addToHistory(entry) {
   try {
     const data = await chrome.storage.local.get([HISTORY_KEY]);
     const items = Array.isArray(data[HISTORY_KEY]) ? data[HISTORY_KEY] : [];
     items.unshift(entry);
-    if (items.length > HISTORY_MAX) items.length = HISTORY_MAX;
+    const pro = await isProUser(); // you already added isProUser()
+    const cap = pro ? HISTORY_MAX_PRO : HISTORY_MAX_FREE;
+    if (items.length > cap) items.length = cap;
     await chrome.storage.local.set({ [HISTORY_KEY]: items });
   } catch (e) {
     console.error("History save failed:", e);
@@ -178,27 +213,35 @@ function setupContextMenuBase() {
 }
 
 function addTemplateMenuItems() {
-  chrome.storage.sync.get(["h2c_templates"], (data) => {
-    const templates = Array.isArray(data.h2c_templates)
-      ? data.h2c_templates
-      : [];
+  // Only show template items if Pro
+  chrome.storage.local.get(["h2c_is_pro"], (proData) => {
+    const pro = proData.h2c_is_pro === true;
+    if (!pro) return;
 
-    const seen = new Set();
+    chrome.storage.sync.get(["h2c_templates"], (data) => {
+      const templates = Array.isArray(data.h2c_templates)
+        ? data.h2c_templates
+        : [];
+      const seen = new Set();
 
-    for (const tpl of templates) {
-      if (!tpl?.id) continue;
+      for (const tpl of templates) {
+        if (!tpl?.id) continue;
 
-      const id = TEMPLATE_ITEM_PREFIX + tpl.id;
-      if (seen.has(id)) continue;
-      seen.add(id);
+        const id = TEMPLATE_ITEM_PREFIX + tpl.id;
+        if (seen.has(id)) continue;
+        seen.add(id);
 
-      chrome.contextMenus.create({
-        id,
-        parentId: TEMPLATES_PARENT,
-        title: tpl.name || "Untitled template",
-        contexts: ["selection"],
-      });
-    }
+        chrome.contextMenus.create(
+          {
+            id,
+            parentId: TEMPLATES_PARENT,
+            title: tpl.name || "Untitled template",
+            contexts: ["selection"],
+          },
+          () => void chrome.runtime.lastError
+        );
+      }
+    });
   });
 }
 
@@ -356,9 +399,16 @@ async function openChatGPTAndInject(selectedText) {
   chrome.tabs.onUpdated.addListener(listener);
 }
 
-// Init menus
-chrome.runtime.onInstalled.addListener(() => scheduleRefreshMenus());
-chrome.runtime.onStartup.addListener(() => sceduleRefreshMenus());
+// Init menus + init Pro flag
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.set({ h2c_is_pro: false });
+  scheduleRefreshMenus();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  scheduleRefreshMenus();
+});
+
 scheduleRefreshMenus();
 
 // Context menu click handler
@@ -367,7 +417,36 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
   if (!selected) return;
 
   const pageUrl = info.pageUrl || "";
-  const pageTitle = "";
+  let pageTitle = "";
+  try {
+    if (info.tabId) {
+      const tab = await chrome.tabs.get(info.tabId);
+      pageTitle = tab?.title || "";
+    }
+  } catch {}
+
+  if (
+    typeof info.menuItemId === "string" &&
+    info.menuItemId.startsWith(TEMPLATE_ITEM_PREFIX)
+  ) {
+    const selected = (info.selectionText || "").trim();
+    if (!selected) return;
+
+    const pro = await isProUser();
+    if (!pro) {
+      // Open Options page (we'll show the upgrade message there)
+      chrome.tabs.create({
+        url: chrome.runtime.getURL("options.html#upgrade"),
+      });
+      return;
+    }
+
+    const templateId = info.menuItemId.slice(TEMPLATE_ITEM_PREFIX.length);
+    const action = { type: "template", id: templateId };
+    const prompt = await buildCustomPrompt(action, selected);
+    if (prompt) await openChatGPTAndInject(prompt);
+    return;
+  }
 
   // Top-level Ask
   if (info.menuItemId === MENU_ID) {
@@ -448,6 +527,16 @@ chrome.runtime.onMessage.addListener((msg) => {
 
   if (msg.type === "H2C_RUN" && msg.text) {
     (async () => {
+      // If the action is a template, require Pro
+      if (msg.action?.type === "template") {
+        const pro = await isProUser();
+        if (!pro) {
+          chrome.tabs.create({
+            url: chrome.runtime.getURL("options.html#upgrade"),
+          });
+          return;
+        }
+      }
       const { pageUrl, pageTitle } = await getActiveTabInfo();
       const prompt = await buildCustomPrompt(msg.action, String(msg.text));
 

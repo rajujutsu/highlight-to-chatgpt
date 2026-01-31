@@ -9,6 +9,7 @@
       .row { display: flex; gap: 10px; align-items: center; margin: 10px 0 16px; }
       input { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 10px; }
       button { padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 10px; background: #fff; cursor: pointer; }
+      button.locked { opacity: 0.55; cursor: not-allowed; }
       .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; margin: 10px 0; }
       .meta { color: #6b7280; font-size: 12px; display: flex; flex-wrap: wrap; gap: 10px; }
       .title { font-weight: 700; margin: 4px 0 8px; }
@@ -22,7 +23,10 @@
 
     <div class="row">
       <input id="q" placeholder="Search highlights, prompts, actions, or site…" />
-      <button id="clear">Clear history</button>
+      <button id="exportJson">Export JSON</button>
+      <button id="exportCsv">Export CSV</button>
+      <button id="exportMd">Export MD</button>
+      <button id="clear">Clear</button>
     </div>
 
     <div id="list"></div>
